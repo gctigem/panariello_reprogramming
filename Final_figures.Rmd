@@ -1,0 +1,2122 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+#library loading
+
+library(ggplot2)
+library(ggridges)
+library(reshape2)
+library(matrixStats)
+library(xlsx)
+library(tidyr)
+library(pheatmap)
+
+multi_join=function(list_of_loaded_data, join_func, ...){
+  
+  require("dplyr")
+  
+  output <- Reduce(function(x, y) {join_func(x, y, ...)}, list_of_loaded_data)
+  
+  return(output)
+}
+
+# data loading
+
+cells=readRDS("Data/filt_cmd_anlyzed.rds")
+mtx=readRDS("Data/filt_matrix_normalized.rds")
+
+```
+
+# Figure 1A
+
+```{r}
+df=read.table("Final_Figures/well_uf_comparison.txt")
+df$V1=factor(df$V1, levels=c("well", "uF"))
+
+pdf("Final_Figures/box_wellvsuf.pdf", height = 6, width=6)
+ggplot(df, aes(x=V1, y=V2)) +
+    geom_boxplot(alpha=0.8, fill="seagreen3", width=0.4,color="black",outlier.shape = NA) +
+theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(size=15),
+        axis.title = element_text(size=15)) +
+  xlab("")+
+  ylab("STAT3 Nuclear Intensity/Hoechst a.u.")
+dev.off()
+
+```
+
+# Figure 1 - Integration
+
+```{r}
+pro_sign=read.table("../Proteomics/UP_D7vsD5.txt")
+pro_sign$V1=sapply(strsplit(as.character(pro_sign$V1),";"),"[[",1)
+
+heat=mtx[pro_sign$V1,]
+ann=data.frame(peaks=rownames(heat))
+for(i in unique(cells$day)){
+  tmp=rowMeans(heat[,grep(i, cells$day)])
+  ann=cbind(ann, tmp)
+  colnames(ann)=c(colnames(ann)[-ncol(ann)], i)
+}
+
+ann=as.matrix(ann[,-1])
+ann=t((ann-rowMeans(ann))/rowSds(ann))
+ann=data.frame(cond=rownames(ann), medians=rowMedians(ann, na.rm = T))
+ann$cond=factor(ann$cond, levels=levels(cells$day))
+
+
+pdf("UP_D7vsD5_lineplot_zsc.pdf",height=8, width = 8, useDingbats = F)
+ggplot(ann, aes(x=cond, y=medians, group=1)) +
+  geom_line(color="orange4",size=2)+
+  geom_point(color="orange4",size=5)+theme_classic()+theme(panel.grid = element_blank(),legend.position = "none",axis.title = element_blank(),axis.text.x = element_blank())+
+  scale_x_discrete()+coord_cartesian(ylim = c(-1.5,1.5))
+dev.off()
+
+```
+# Figure 1C - latest
+
+```{r}
+genes=c("ANPEP", "SNAI2","FOXH1","LEFTY2","NANOG", "POU5F1","DPPA3","ALPPL2")
+
+for(x in c("D0","D5","D9","D13")){
+  ps=row.names(cells[cells$day==x,])
+  tmp=as.data.frame(as.matrix(mtx[rownames(mtx)%in%genes,colnames(mtx)%in%ps]))
+  tmp$genes=rownames(tmp)
+  res=melt(tmp,id.vars="genes")
+  for(j in genes){
+    print(paste0(j, " percentage is", sum(res[res$genes==j,"value"]>0)/2500*100))
+  }
+  # res$cat=ifelse(res$value<2,0.5,4.5)
+  # res$cat=ifelse(res$value>=2 & res$value <4, 1.5, res$cat)
+  # res$cat=ifelse(res$value>=4 & res$value <6, 2.5, res$cat)
+  # res$cat=ifelse(res$value>=6 & res$value <8, 3.5, res$cat)
+  res$genes=factor(res$genes, levels=genes)
+}
+
+
+perc=lapply(c("D0","D5","D9","D13"),function(x) {
+  ps=row.names(cells[cells$day==x,])
+  mtx=as.data.frame(as.matrix(mtx[rownames(mtx)%in%genes,colnames(mtx)%in%ps]))
+  mtx$genes=rownames(mtx)
+  res=melt(mtx,id.vars="genes")
+  # res$cat=ifelse(res$value<2,0.5,4.5)
+  # res$cat=ifelse(res$value>=2 & res$value <4, 1.5, res$cat)
+  # res$cat=ifelse(res$value>=4 & res$value <6, 2.5, res$cat)
+  # res$cat=ifelse(res$value>=6 & res$value <8, 3.5, res$cat)
+  res$genes=factor(res$genes, levels=genes)
+  return(res)
+})
+
+
+pdf("Figures/genes_violin_cell_time.pdf",height=8, width = 8, useDingbats = F)
+for(i in 1:length(perc)){
+  print(ggplot(perc[[i]], aes(x=genes, y=value,fill=genes)) +
+          geom_violin(color="black",alpha=.8,scale="width")+
+          theme_classic()+theme(panel.grid = element_blank(),legend.position = "none",axis.title = element_blank(),axis.text.x = element_blank())+
+          # geom_hline(yintercept = 1, linetype="dashed",size=.5, color="black")+
+          # geom_hline(yintercept = 2, linetype="dashed",size=.5, color="black")+
+          # geom_hline(yintercept = 3, linetype="dashed",size=.5, color="black")+
+          # geom_hline(yintercept = 4, linetype="dashed",size=.5, color="black")+
+          # geom_hline(yintercept = 5, linetype="dashed",size=.5, color="black")+
+          scale_x_discrete()+coord_cartesian(ylim = c(0,10.5))+scale_fill_brewer(palette = "Dark2"))
+}
+dev.off()
+
+```
+
+# Reviewer SR2 derivation
+
+```{r}
+write.table(as.matrix(table(cells$inter_clusters,cells$day)),"Figures/day_cluster_correlation.txt",sep="\t",quote=F)
+```
+# Reviewer ChIP OSKM at 48h
+
+```{r}
+txdb=TxDb.Hsapiens.UCSC.hg19.knownGene::TxDb.Hsapiens.UCSC.hg19.knownGene
+peaks=ChIPseeker::readPeakFile("Data/GSE36570_All_48hrs_MTFBRs.bed")
+
+
+
+```
+
+
+# Reviewer embryo sign
+
+```{r}
+prot=read.table("Data/plot_embryo_sign.txt", header=T,sep="\t")
+
+zsc=(as.matrix(mtx)-rowMeans(as.matrix(mtx)))/rowSds(as.matrix(mtx))
+zsc=ifelse(zsc>5, 5, zsc)
+zsc=ifelse(zsc<(-5), -5, zsc)
+
+p=list()
+
+for(i in 1:ncol(prot)){
+tmp=zsc[rownames(zsc)%in%prot[,i],]
+df=data.frame(id=colnames(mtx), path=colMeans(tmp))
+p[[i]]=merge(cells[,c("id","x","y")], df, by="id")
+p[[i]]$name=colnames(prot)[i]
+}
+
+final=multi_join(p,rbind)
+final$name=gsub("X","",final$name)
+final$name=factor(final$name,levels=gsub("X","",colnames(prot)))
+
+pdf("Figures/embryo_path_fle.pdf", height = 8, width=8, useDingbats = F)
+ggplot(data = final, aes_string(x = "x", y = "y", color="path")) +
+  geom_point(size = 0.5) + theme_classic() + 
+ theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        title = element_text(size=24)) +
+  xlab("FLE1") + 
+  ylab("FLE2") + 
+scale_color_gradientn(colours=c('grey90', 'red', 'red4'), limits=c(0,NA), oob=scales::squish)+
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 8))+
+  facet_wrap(.~name)
+dev.off()
+
+
+pdf("Final_Figures/proteomic_path_fle.pdf", height = 8, width=8, useDingbats = F)
+for (i in 1:length(plot_list)) {
+  print(plot_list[[i]])
+}
+dev.off()
+
+
+
+# Supp 1
+
+```{r}
+genes=c("ANPEP", "SNAI2","FOXH1","LEFTY2","NANOG", "POU5F1","DPPA3","ALPPL2")
+
+pdf("Figures/supplementary_markers_fle.pdf", height = 8, width=8, useDingbats = F)
+for(i in genes){
+exp=as.data.frame(t(as.matrix(mtx[i,,drop=F])))
+exp$cells=rownames(exp)
+exp=melt(exp,id.vars = "cells")
+
+exp=merge(exp, cells[,1:3],by=1)
+
+print(ggplot(data = exp, aes_string(x = "x", y = "y", color="value")) +
+  geom_point(size = 0.5) + theme_classic() + 
+ theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        title = element_text(size=24)) +
+  xlab("FLE1") + 
+  ylab("FLE2") + 
+  scale_color_gradient2(low = "grey90", high = "darkorchid4", midpoint = 2))
+ }
+
+dev.off()
+
+```
+
+#Figure 3A - latest
+
+## Gene signatures
+```{r}
+genes=c("COL4A1","LAMB1","DNMT3B","NANOG")
+pdf("Figures/data_markers_fle.pdf", height = 8, width=8, useDingbats = F)
+for(i in genes){
+exp=as.data.frame(t(as.matrix(mtx[i,,drop=F])))
+exp$cells=rownames(exp)
+exp=melt(exp,id.vars = "cells")
+
+exp=merge(exp, cells[,1:3],by=1)
+
+print(ggplot(data = exp, aes_string(x = "x", y = "y", color="value")) +
+  geom_point(size = 0.5) + theme_classic() + 
+ theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        title = element_text(size=24)) +
+  xlab("FLE1") + 
+  ylab("FLE2") + 
+  scale_color_gradient2(low = "grey90", high = "darkorchid4", midpoint = 2))
+ }
+
+dev.off()
+
+```
+
+
+
+
+#Figure 2A
+
+## Reprogramming experimental design
+
+
+#Figure 2B
+
+## FLE with time-points
+
+```{r}
+
+palette=c('#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','green2','#a65628','#f781bf')
+
+
+pdf("Final_Figures/samples_fle.pdf", height = 8, width=8, useDingbats = F)
+ggplot(data = cells, aes_string(x = "x", y = "y", color="day_progression")) +
+  geom_point(size = 0.5) + theme_classic() + 
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        title = element_text(size=24),
+        legend.position = c(0.1, 0.2)) +
+  xlab("FLE1") + 
+  ylab("FLE2") + 
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)) +
+  scale_color_gradient(low="#7F29A0", high="#EA6B14", breaks = c(0, 3, 5, 7, 9, 11, 13,15))+
+    guides(color = guide_legend(override.aes=list(size=6)))
+dev.off()
+
+```
+
+
+#Figure 2B
+
+## FLE with clusters
+
+```{r}
+palette=unlist(strsplit('#7f2b4a, #cc78bb, #3843a6, orange, red, yellow3, green4, #4ad962, #334016, deepskyblue, pink, grey70', '[, ]+'))
+
+
+
+pdf("Final_Figures/cluster_fle.pdf", height = 8, width=8, useDingbats = F)
+ggplot(data = cells, aes_string(x = "x", y = "y", color="inter_clusters")) + 
+    geom_point(size = 0.5) + theme_classic() + 
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        title = element_text(size=24),
+        legend.position = c(0.1, 0.3)) +
+  xlab("FLE1") + 
+  ylab("FLE2") +  
+  scale_color_manual(values=palette)+
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)) +
+  guides(color = guide_legend(override.aes=list(size=6)))
+dev.off()
+```
+
+#Figure 2C
+
+## Distribution of time-points in clusters
+
+```{r}
+palette=unlist(strsplit('#7f2b4a, #cc78bb, #3843a6, orange, red, yellow3, green4, #4ad962, #334016, deepskyblue, pink', '[, ]+'))
+
+cells$inter_clusters=factor(cells$inter_clusters, levels=rev(levels(cells$inter_clusters)))
+
+pdf("Final_Figures/cluster_day_distribution.pdf", height = 12, width=8)
+ggplot(cells[cells$inter_clusters!="NA",], aes(x=day, y=inter_clusters, group=inter_clusters, fill=inter_clusters))+
+geom_density_ridges(aes(fill=inter_clusters), scale=.9)+
+  theme_classic(base_size = 16)+
+  theme(axis.title = element_text(size=15),
+        axis.text = element_text(size=15),
+        legend.position = "none",
+        axis.ticks.y = element_blank())+
+  scale_fill_manual(values=rev(palette),
+  guide=guide_legend(reverse=T,title = NULL,override.aes = list(size=0.5)))+
+  xlab('Day')+
+  ylab('Cluster')
+dev.off()
+
+
+```
+
+
+## Distribution of cell-cycle phase in clusters
+
+```{r}
+palette=unlist(strsplit('#7f2b4a, #cc78bb, #3843a6, orange, red, yellow3, green4, #4ad962, #334016, deepskyblue, pink', '[, ]+'))
+
+cells$inter_clusters=factor(cells$inter_clusters, levels=rev(levels(cells$inter_clusters)))
+cells$cell_cycle=factor(cells$cell_cycle, levels=rev(levels(cells$cell_cycle)))
+
+pdf("Figures/cluster_cellcycle_distribution.pdf", height = 12, width=8)
+ggplot(cells[cells$inter_clusters!="NA",], aes(x=cell_cycle, y=inter_clusters, group=inter_clusters, fill=inter_clusters))+
+geom_density_ridges(aes(fill=inter_clusters), scale=.9)+
+  theme_classic(base_size = 16)+
+  theme(axis.title = element_text(size=15),
+        axis.text = element_text(size=15),
+        legend.position = "none",
+        axis.ticks.y = element_blank())+
+  scale_fill_manual(values=rev(palette),
+  guide=guide_legend(reverse=T,title = NULL,override.aes = list(size=0.5)))+
+  xlab('Day')+
+  ylab('Cluster')
+dev.off()
+
+
+
+```
+
+
+## Hetmap of interesting gens
+
+```{r}
+
+test=sapply(levels(cells$inter_clusters), function(x){
+  tmp=mtx[c("ANPEP", "VIM", "NANOG", "POU5F1", "DPPA4", "LEFTY2","CER1", "EOMES"), colnames(mtx)%in%rownames(cells[cells$inter_clusters==x,])]
+  final=rowMeans(tmp)
+  return(final)
+})
+
+test=(as.matrix(test)-rowMeans(as.matrix(test)))/rowSds(as.matrix(test))
+
+melt=melt(test)
+melt$Var2=ifelse(is.na(melt$Var2), "NA", as.character(melt$Var2))
+
+df_heatmap=merge(melt, cells[!duplicated(cells$inter_clusters),c("inter_clusters", "classes")], by.x="Var2", by.y="inter_clusters")
+
+df_heatmap$Var2=factor(df_heatmap$Var2, levels=levels(cells$inter_clusters))
+
+
+pdf("Final_Figures/heatmap_genes.pdf", height = 12, width = 8)
+ggplot(df_heatmap, aes(Var1, Var2)) + theme_void()+
+  geom_tile(aes(fill = value), color = "black", width=.9, height=.9) + 
+  scale_fill_gradient2(low = "deepskyblue", high = "red4", midpoint = 0) +
+  ylab("") +
+  xlab("") +
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size=15, angle=-90),
+        axis.line = element_blank(),
+        axis.text = element_text(size=15),
+        axis.text.x = element_text(angle=45,hjust=0,vjust = -.5),
+        aspect.ratio = 1,
+        legend.title = element_blank(),
+        legend.text = element_text(size=15))+
+  scale_x_discrete(position = "top") +
+  #geom_text(label=round(df_heatmap$value,2)) +
+  facet_grid(rows = vars(classes),scales="free")
+dev.off()
+
+```
+
+
+## Bubble plot signatures
+
+```{r}
+setwd("cluster_analysis/")
+ls=list.files(".",pattern="proteomic" )
+df=lapply(ls, read.table, sep="\t", header=T)
+names(df)=gsub(".txt","",gsub('^(?:[^_]*_){2}','',ls))
+
+kegg=lapply(1:length(df), function(x) df[[x]][,c("pathway","NES" ,"padj")])
+names(kegg)=names(df)
+
+for( i in seq_along(kegg)){
+  
+  kegg[[i]]$KO <- rep(names(kegg)[i],nrow(kegg[[i]]))
+  
+}
+
+multi_join=function(list_of_loaded_data, join_func, ...){
+  
+  require("dplyr")
+  
+  output <- Reduce(function(x, y) {join_func(x, y, ...)}, list_of_loaded_data)
+  
+  return(output)
+}
+
+kp=multi_join(kegg, rbind)
+tmp=data.frame(KO=unique(cells$cluster_names), inter_clusters= unique(cells$inter_clusters))
+kp=merge(kp, tmp, by="KO")
+kp=kp[-grep("WNT|SASP|ICM",kp$pathway),]
+
+kp$NES=as.numeric(kp$NES)
+kp$class=ifelse(kp$padj>0.05 | kp$NES < 0, "NS", "S")
+kp$NES=ifelse(kp$padj>0.05 | kp$NES < 0, NA, kp$NES)
+kp$pathway=gsub("_", " ", kp$pathway)
+kp_p=kp
+kp_p$list="Proteomic"
+
+ls=list.files(".",pattern="Repro" )
+df=lapply(ls, read.table, sep="\t", header=T)
+names(df)=gsub(".txt","",gsub('^(?:[^_]*_){2}','',ls))
+
+kegg=lapply(1:length(df), function(x) df[[x]][,c("pathway","NES" ,"padj")])
+names(kegg)=names(df)
+
+for( i in seq_along(kegg)){
+  
+  kegg[[i]]$KO <- rep(names(kegg)[i],nrow(kegg[[i]]))
+  
+}
+
+multi_join=function(list_of_loaded_data, join_func, ...){
+  
+  require("dplyr")
+  
+  output <- Reduce(function(x, y) {join_func(x, y, ...)}, list_of_loaded_data)
+  
+  return(output)
+}
+
+kp=multi_join(kegg, rbind)
+tmp=data.frame(KO=unique(cells$cluster_names), inter_clusters= unique(cells$inter_clusters))
+kp=merge(kp, tmp, by="KO")
+kp=kp[grep("Early|Late",kp$pathway),]
+
+kp$NES=as.numeric(kp$NES)
+kp$class=ifelse(kp$padj>0.05 | kp$NES < 0, "NS", "S")
+kp$NES=ifelse(kp$padj>0.05 | kp$NES < 0, NA, kp$NES)
+kp$pathway=gsub("_", " ", kp$pathway)
+kp$list="Repro"
+df=rbind(kp,kp_p)
+
+levels=gsub("_", " ",as.character(kegg[[1]][grep("Early|Late",kegg[[1]]$pathway),"pathway"]))
+
+
+df_heatmap=merge(df, cells[!duplicated(cells$inter_clusters),c("inter_clusters", "classes")], by="inter_clusters")
+df_heatmap=df_heatmap[df_heatmap$inter_clusters!="NA",]
+df_heatmap$inter_cluster=factor(df_heatmap$inter_cluster, levels=levels(cells$inter_clusters))
+df_heatmap$pathway=factor(df_heatmap$pathway, levels=c(as.character(unique(kp_p$pathway)), levels))
+
+
+setwd("../")
+pdf("Final_Figures/bubble_proteomic.pdf", height = 12, width=12)
+ggplot(data = df_heatmap, aes(x = pathway, y = inter_cluster
+, fill = NES,size=class)) +
+  geom_point(pch=21,color="white",alpha=0.95) + theme_bw() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(size=15),
+        axis.text.x=element_text(angle=90, hjust=.95, vjust=.2),
+        axis.ticks = element_blank(),
+        legend.text = element_text(size=15),
+        legend.title = element_text(size=15)) +
+  ylab(NULL) + 
+  xlab(NULL) +
+  scale_fill_gradient(low="white", high="red2", na.value = "white")+
+    scale_size_manual(values=c(1,8))+
+    facet_grid(rows = vars(classes), cols = vars(list),scales="free")
+dev.off()
+
+
+```
+
+
+#Figure 2D
+
+## FLE with proteomic lists enrichment
+
+```{r}
+prot=read.table("Final_Figures/plot_proteomic_sign.txt", header=T)
+
+zsc=(as.matrix(mtx)-rowMeans(as.matrix(mtx)))/rowSds(as.matrix(mtx))
+zsc=ifelse(zsc>5, 5, zsc)
+zsc=ifelse(zsc<(-5), -5, zsc)
+
+plot_list=list()
+
+for(i in 1:ncol(prot)){
+tmp=zsc[rownames(zsc)%in%prot[,i],]
+df=data.frame(id=colnames(mtx), path=colMeans(tmp))
+final=merge(cells[,c("id","x","y")], df, by="id")
+  
+
+  
+plot_list[[i]]=ggplot(data = final, aes_string(x = "x", y = "y", color="path")) +
+  geom_point(size = 0.5) + theme_classic() + 
+ theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        title = element_text(size=24),
+        legend.position = c(0.1, 0.2)) +
+  xlab("FLE1") + 
+  ylab("FLE2") + 
+scale_color_gradientn(colours=c('grey90', 'red', 'red4'), limits=c(0,NA), oob=scales::squish)+
+  ggtitle(colnames(prot)[i])+
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15))
+}
+
+pdf("Final_Figures/proteomic_path_fle.pdf", height = 8, width=8, useDingbats = F)
+for (i in 1:length(plot_list)) {
+  print(plot_list[[i]])
+}
+dev.off()
+
+names(plot_list)=colnames(prot)
+
+
+pdf("Final_Figures/positive_enrich_score_d15.pdf", height = 8, width=8)
+for(i in c("LATE_PLURIPOTENCY", "MATRISOME")){
+  d=plot_list[[i]]$data
+  d$color=d$path>0.4 & grepl("D15",d$id)
+  write.table(d, paste0(i, "_d15_cells.txt"), row.names = F, quote=F, sep="\t")
+  
+print(ggplot(data = d, aes_string(x = "x", y = "y", color="color")) +
+  geom_point(size = 0.5) + theme_classic() + 
+ theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        title = element_text(size=24),
+        legend.position = c(0.1, 0.2)) +
+  xlab("FLE1") + 
+  ylab("FLE2") + 
+scale_color_manual(values = c("grey85", "red"))+
+  ggtitle(i)+
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)))
+}
+dev.off()
+
+
+```
+
+
+#Figure 2E
+
+## Trajectories
+
+```{r}
+traj=read.csv("WOT/trajectory_data_15_pathway.csv", header=T, row.names=1)
+
+test=list()
+for(i in unique(cells$day)){
+test[[i]]=as.data.frame(sapply(colnames(traj), function(x) traj[rownames(traj)%in%rownames(cells[cells$day==i,]),x]>mean(traj[rownames(traj)%in%rownames(cells[cells$day==i,]),x])))
+rownames(test[[i]])=rownames(cells[cells$day==i,])
+}
+
+test=multi_join(test, rbind)
+
+
+final=merge(cells[,c("id", "x","y","day")], test, by.x="id", by.y=0)
+color=c("#440154FF", "#1E9B8AFF", "blue2", "red2")
+
+p=list()
+for(i in 1:ncol(traj)){
+name=colnames(traj)[i]
+p[[i]]=ggplot(data = final, aes_string(x = "x", y = "y", color=name)) +
+  geom_point(data=final[,c("x","y")], color="grey90", size=.2)+
+  geom_point(size = 0.2) + theme_classic() + 
+  theme(axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        title = element_text(size=24),
+        legend.position = "none") +
+  xlab("") + 
+  ylab("") + 
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)) +
+  facet_wrap(. ~ day, nrow = 1)+
+scale_color_manual(values=c("grey90", color[i]))+
+  guides(color = guide_legend(override.aes=list(size=6)))
+}
+
+
+pdf("Final_Figures/trajectory_fle.pdf", height = 4, width=24)
+for(i in 1:length(p)){
+  print(p[[i]])
+}
+dev.off()
+
+
+
+pdf("Final_Figures/grey_fle.pdf", height = 8, width=8, useDingbats = F)
+ggplot(data = cells, aes_string(x = "x", y = "y")) +
+  geom_point(size = 0.5, color="grey70") + theme_void() +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank(),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        title = element_text(size=24),
+        legend.position = c(0.1, 0.2)) +
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)) +
+    guides(color = guide_legend(override.aes=list(size=6)))
+dev.off()
+
+
+
+
+```
+
+
+#Figure 2F
+
+## Trajectories correlation
+
+```{r}
+test=lapply(levels(cells$day), function(x){
+  cor=traj[rownames(traj)%in%rownames(cells[cells$day==x,]),]
+  cormat <- cor(cor, method="pearson")
+  return(cormat)
+})
+for(i in 1:length(levels(cells$day))){
+  test[[i]]=as.data.frame(test[[i]])
+  test[[i]]$day=levels(cells$day)[i]
+  test[[i]]$comp=rownames(test[[i]])
+}
+
+final=multi_join(test,rbind)
+
+df=data.frame(Matr_IPS=final[final$comp=="IPS", "Matrisome"], day=levels(cells$day))
+
+df$day=factor(df$day, levels=levels(cells$day))
+
+pdf("Final_Figures/traj_correlation.pdf", height = 8, width=8, useDingbats = F)
+ggplot(data = df, aes_string(x = "day", y = "Matr_IPS", group=1)) +
+  geom_line(size=1, color="black", )+geom_point(pch=21, fill="white", size=2)+
+   theme_bw() + 
+  theme(axis.text = element_text(size=15),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        title = element_text(size=24),
+        legend.position = "top") +
+  xlab("Days") + 
+  ylab("Pearson Correlation") + 
+  scale_color_brewer(palette="Dark2") +
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)) +
+    guides(color = guide_legend(override.aes=list(size=6)))
+dev.off()
+
+
+```
+
+## Hetmap of SASP leading edge
+
+```{r}
+genes="CXCL8,IL1B,CXCL1,MMP1,MMP3,CXCL6,PLAU,TNFRSF11B,HGF,EREG,CCL2,PLAT,IGFBP4,IL6,AXL,FAS"
+genes=unlist(strsplit(genes, ","))
+
+
+test=sapply(levels(cells$inter_clusters), function(x){
+  tmp=mtx[genes, colnames(mtx)%in%rownames(cells[cells$inter_clusters==x,])]
+  final=rowMeans(tmp)
+  return(final)
+})
+
+test=(as.matrix(test)-rowMeans(as.matrix(test)))/rowSds(as.matrix(test))
+
+melt=melt(test)
+melt$Var2=ifelse(is.na(melt$Var2), "NA", as.character(melt$Var2))
+
+df_heatmap=merge(melt, cells[!duplicated(cells$inter_clusters),c("inter_clusters", "classes")], by.x="Var2", by.y="inter_clusters")
+
+df_heatmap$Var2=factor(df_heatmap$Var2, levels=levels(cells$inter_clusters))
+
+
+pdf("Final_Figures/heatmap_marker_SASP.pdf", height = 12, width = 8)
+ggplot(df_heatmap, aes(Var1, Var2)) + theme_void()+
+  geom_tile(aes(fill = value), color = "black", width=.9, height=.9) + 
+  scale_fill_gradient2(low = "deepskyblue", high = "red4", midpoint = 0) +
+  ylab("") +
+  xlab("") +
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size=15, angle=-90),
+        axis.line = element_blank(),
+        axis.text = element_text(size=15),
+        axis.text.x = element_text(angle=45,hjust=0,vjust = -.5),
+        aspect.ratio = 1,
+        legend.title = element_blank(),
+        legend.text = element_text(size=15))+
+  scale_x_discrete(position = "top") +
+  #geom_text(label=round(df_heatmap$value,2)) +
+  facet_grid(rows = vars(classes),scales="free")
+dev.off()
+
+```
+
+
+#Figure S2A
+
+```{r}
+raw=readRDS("Data/raw_cmd.rds")
+
+pdf("Final_Figures/Correlation_plots.pdf", height = 8, width = 8, useDingbats = F)
+ggplot(raw, aes(x=Total_mRNAs, y=num_genes_expressed, color=Percent.mito)) +
+  geom_point(size=.5) + theme_bw() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.title = element_blank(),
+        axis.title = element_text(size=15),
+        axis.text = element_text(size=15)) +
+  xlab("Count depth") + 
+  ylab("Number of genes") +
+  geom_hline(yintercept=1000, linetype="dashed", color = "grey30", alpha=.7)+
+  scale_color_gradient(low="black", high="red")
+  dev.off()
+
+```
+
+#Figure S2B
+
+```{r}
+pdf("Final_Figures/replicates_fle.pdf", height = 8, width=12, useDingbats = F)
+ggplot(data = cells, aes_string(x = "x", y = "y", color="orig.ident")) +
+  geom_point(data=cells[,2:3], color="grey80", size=.2, alpha=.3)+
+  geom_point(size = 0.2) + theme_classic() + 
+  theme(axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        title = element_text(size=24),
+        legend.position = "none") +
+  xlab("") + 
+  ylab("") + 
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)) +
+  facet_wrap(. ~ orig.ident, nrow = 3)+
+  guides(color = guide_legend(override.aes=list(size=6)))
+dev.off()
+
+## Pearson correlation between replicates
+cor=as.matrix(table(cells$inter_clusters, cells$orig.ident))
+### Normalize
+cor=t(t(cor)/colSums(cor))
+cormat <- cor(cor, method="pearson")
+cormat=cormat[levels(cells$orig.ident),levels(cells$orig.ident)]
+
+
+get_upper_tri <- function(cormat){
+ cormat[lower.tri(cormat)]<- NA
+ return(cormat)}
+
+upper_tri <- get_upper_tri(cormat)
+
+melted_cormat <- melt(upper_tri, na.rm = TRUE)
+
+tmp=as.data.frame(table(cells$day,cells$orig.ident))
+tmp=tmp[tmp$Freq!=0,]
+colnames(tmp)[1]="day"
+
+melted_cormat=merge(melted_cormat, tmp[,-3], by="Var2")
+melted_cormat=merge(melted_cormat, tmp[,-3], by.y="Var2", by.x="Var1")
+melted_cormat=melted_cormat[melted_cormat$day.x==melted_cormat$day.y,]
+melted_cormat$day.x=factor(melted_cormat$day.x, levels=levels(cells$day))
+
+
+# Create a ggheatmap
+ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
+  geom_tile(color = "white")+
+  scale_fill_gradient2(low = "white", high = "red4", mid = "red", 
+                       midpoint = 0.75, limit = c(0.5,1), space = "Lab", 
+                       name="Pearson\nCorrelation") +
+  theme_minimal()+ # minimal theme
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 15, hjust = 1))
+
+
+
+
+pdf("Final_Figures/correlation_mtx.pdf", height = 6, width = 12)
+ggheatmap + 
+  geom_text(aes(Var2, Var1, label = round(value,2)), color = "black", size = 5) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank(),
+    axis.ticks = element_blank(),
+    legend.position = "top",
+    legend.direction = "horizontal")+
+  guides(fill = guide_colorbar(barwidth = 7, barheight = 1,
+                               title.position = "top", title.hjust = 0.5))+
+  facet_wrap(.~ day.x, nrow=2, scales="free")
+dev.off()
+
+
+```
+
+
+# Figure S2C
+
+```{r}
+dev=read.table("Final_Figures/developemental.txt")
+som=read.table("Final_Figures/somatic.txt")
+ls=list(dev,som)
+
+zsc=(as.matrix(mtx)-rowMeans(as.matrix(mtx)))/rowSds(as.matrix(mtx))
+zsc=ifelse(zsc>5, 5, zsc)
+zsc=ifelse(zsc<(-5), -5, zsc)
+
+plot_list=list()
+
+for(i in 1:2){
+tmp=zsc[rownames(zsc)%in%ls[[i]][,1],]
+df=data.frame(id=colnames(mtx), path=colMeans(tmp))
+final=merge(cells[,c("id","x","y")], df, by="id")
+  
+  
+plot_list[[i]]=ggplot(data = final, aes_string(x = "x", y = "y", color="path")) +
+  geom_point(size = 0.5) + theme_classic() + 
+ theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        legend.position = c(0.1, 0.2)) +
+  xlab("FLE1") + 
+  ylab("FLE2") + 
+scale_color_gradientn(colours=c('grey90', 'red', 'red4'), limits=c(0,NA), oob=scales::squish)+
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15))
+}
+
+
+pdf("Final_Figures/dev_somatic_fle.pdf", height = 8, width=8, useDingbats = F)
+for (i in 1:length(plot_list)) {
+  print(plot_list[[i]])
+}
+dev.off()
+
+```
+
+
+#Figure S2D
+
+```{r}
+palette=c('#e41a1c','#377eb8','#4daf4a')
+
+
+pdf("Final_Figures/cell_cycle_fle.pdf", height = 8, width=8, useDingbats = F)
+ggplot(data = cells, aes_string(x = "x", y = "y", color="cell_cycle")) + 
+    geom_point(size = 0.5) + theme_classic() + 
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        title = element_text(size=24),
+        legend.position = c(0.1, 0.3)) +
+  xlab("FLE1") + 
+  ylab("FLE2") +  
+  scale_color_manual(values=palette)+
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)) +
+  guides(color = guide_legend(override.aes=list(size=6)))
+dev.off()
+
+```
+
+# Figure S2H
+
+```{r}
+fig=fgseaRes[,c(1,3,5)]
+fig$padj=-log10(fig$padj)
+fig$pathway=gsub("_", " ", fig$pathway)
+fig=fig[order(fig$NES,decreasing = T),]
+fig$pathway=factor(fig$pathway, levels=rev(fig$pathway))
+
+
+pdf("Final_Figures/barplot_gsea.pdf", height = 6, width=12)
+ggplot(data = fig, aes_string(x = "pathway", y = "padj", fill="NES")) +
+  geom_bar(width=.7, color="black", stat="identity") + theme_bw() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(size=15),
+        legend.text = element_text(size=15),
+        legend.title = element_text(size=15))+
+  xlab("") + 
+  ylab("") + 
+  geom_hline(yintercept = -log10(0.05), linetype="dashed", color="black", size=.7)+
+  scale_fill_gradient2(low = "deepskyblue", high = "red4", midpoint = 0) +
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)) +
+  coord_flip()
+dev.off()
+
+```
+
+# Figure 2D
+
+```{r}
+# Figure 2C - Enrichment of Proteomic lists
+setwd("cluster_analysis/")
+ls=list.files(".",pattern="proteomic" )
+df=lapply(ls, read.table, sep="\t", header=T)
+names(df)=gsub(".txt","",gsub('^(?:[^_]*_){2}','',ls))
+
+kegg=lapply(1:length(df), function(x) df[[x]][,c("pathway","NES" ,"padj")])
+names(kegg)=names(df)
+
+for( i in seq_along(kegg)){
+  
+  kegg[[i]]$KO <- rep(names(kegg)[i],nrow(kegg[[i]]))
+  
+}
+
+multi_join=function(list_of_loaded_data, join_func, ...){
+  
+  require("dplyr")
+  
+  output <- Reduce(function(x, y) {join_func(x, y, ...)}, list_of_loaded_data)
+  
+  return(output)
+}
+
+kp=multi_join(kegg, rbind)
+tmp=data.frame(KO=unique(cells$cluster_names), inter_clusters= unique(cells$inter_clusters))
+kp=merge(kp, tmp, by="KO")
+
+kp$NES=as.numeric(kp$NES)
+kp$class=ifelse(kp$padj>0.05 | kp$NES < 0, "NS", "S")
+kp$NES=ifelse(kp$padj>0.05 | kp$NES < 0, NA, kp$NES)
+kp$pathway=gsub("_", " ", kp$pathway)
+kp=kp[-grep("WNT", kp$pathway),]
+kp$inter_cluster=factor(kp$inter_cluster, levels=rev(intermediate_clusters))
+
+
+setwd("../")
+pdf("Final_Figures/bubble_proteomic.pdf", height = 12, width=12)
+ggplot(data = kp, aes(x = pathway, y = inter_cluster
+, fill = NES,size=class)) +
+  geom_point(pch=21, alpha=0.95) + theme_bw() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(size=15),
+        axis.text.x=element_text(angle=90, hjust=.95, vjust=.2),
+        axis.ticks = element_blank(),
+        legend.text = element_text(size=15),
+        legend.title = element_text(size=15)) +
+  ylab(NULL) + 
+  xlab(NULL) +
+  scale_fill_gradient(low="white", high="red2", na.value = "black")+
+    scale_size_manual(values=c(1,10))
+dev.off()
+
+```
+
+
+
+
+
+
+
+
+# Figure 2E
+
+```{r}
+ls=list(palette=unlist(strsplit('grey80, grey80, grey80, orange, red, grey80, green4, #4ad962, grey80, grey80, grey80, grey80', '[, ]+')), palette2=unlist(strsplit('grey80, #cc78bb, grey80, grey80, grey80, grey80, grey80, grey80, grey80, grey80, grey80, grey80', '[, ]+')),palette3=unlist(strsplit('grey80, grey80, grey80, grey80, grey80, yellow3, grey80, grey80, #334016, deepskyblue, pink, grey80', '[, ]+')))
+
+p=list()
+for(i in 1:length(ls)){
+p[[i]]=ggplot(data = cells, aes_string(x = "x", y = "y", color="num_clusters")) +
+  geom_point(size = 0.5) + theme_classic() + 
+  theme(axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        title = element_text(size=24)) +
+  xlab("") + 
+  ylab("") + 
+  scale_color_manual(values=ls[[i]])+
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)) +
+  guides(color = guide_legend(override.aes=list(size=6)))
+}
+
+pdf("Final_Figures/cluster_single_fle.pdf", height = 8, width=8)
+for(i in 1:length(p)){
+  print(p[[i]])
+}
+dev.off()
+
+```
+
+
+# Figure 2F
+
+```{r}
+prot=read.table("Final_Figures/proteomic_sign_plot.txt", header=T)
+
+zsc=(as.matrix(mtx)-rowMeans(as.matrix(mtx)))/rowSds(as.matrix(mtx))
+zsc=ifelse(zsc>5, 5, zsc)
+zsc=ifelse(zsc<(-5), -5, zsc)
+
+plot_list=list()
+
+for(i in 1:ncol(prot)){
+tmp=zsc[rownames(zsc)%in%prot[,i],]
+df=data.frame(id=colnames(mtx), path=colMeans(tmp))
+#df$path=ifelse(df$path<0, 0, df$path)
+final=merge(cells[,c("id","x","y")], df, by="id")
+  
+
+  
+plot_list[[i]]=ggplot(data = final, aes_string(x = "x", y = "y", color="path")) +
+  geom_point(size = 0.5) + theme_classic() + 
+ theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        title = element_text(size=24),
+        legend.position = c(0.1, 0.2)) +
+  xlab("FLE1") + 
+  ylab("FLE2") + 
+  scale_color_gradient2(low="grey85", high="red2", mid="grey85", midpoint = 0) +
+  ggtitle(colnames(prot)[i])+
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15))
+}
+
+pdf("Final_Figures/proteomic_path_fle.pdf", height = 8, width=8)
+for (i in 1:length(plot_list)) {
+  print(plot_list[[i]])
+}
+dev.off()
+
+```
+
+
+# Figure S2F
+
+```{r}
+traj=read.csv("WOT/trajectory_data_15_pathway.csv", header=T, row.names=1)
+
+test=list()
+for(i in unique(cells$day)){
+test[[i]]=as.data.frame(sapply(colnames(traj), function(x) traj[rownames(traj)%in%rownames(cells[cells$day==i,]),x]>mean(traj[rownames(traj)%in%rownames(cells[cells$day==i,]),x])))
+rownames(test[[i]])=rownames(cells[cells$day==i,])
+}
+
+
+test=multi_join(test, rbind)
+
+
+final=merge(cells[,c("id", "x","y","day")], test, by.x="id", by.y=0)
+color=c('#fc8d62','#8da0cb')
+
+p=list()
+for(i in 1:ncol(traj)){
+name=colnames(traj)[i]
+p[[i]]=ggplot(data = final, aes_string(x = "x", y = "y", color=name)) +
+  geom_point(data=final[,c("x","y")], color="grey90", size=.2)+
+  geom_point(size = 0.2) + theme_classic() + 
+  theme(axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        title = element_text(size=24),
+        legend.position = "none",
+        strip.text = element_text(size=30, family="sans")) +
+  xlab("") + 
+  ylab("") + 
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)) +
+  facet_wrap(. ~ day, nrow = 1)+
+scale_color_manual(values=c("grey90", color[i]))+
+  guides(color = guide_legend(override.aes=list(size=6)))
+}
+
+
+pdf("Final_Figures/trajectory_fle_matri.pdf", height = 4, width=24)
+  print(p[[1]])
+dev.off()
+pdf("Final_Figures/trajectory_fle_ips.pdf", height = 4, width=24)
+  print(p[[2]])
+dev.off()
+
+```
+
+
+# Figure 2G ALTERNATIVE
+
+```{r}
+genes="MET,HGF,ITGB5,ITGB1,ITGAV,ITGA4,ITGA6,DAG1,LAMB1,LAMC1,LAMA1,LAMA5,FN1,HSPG2,COL18A1,COL4A2,COL4A6,COL4A5,SPP1,FBN1,FBN2,FBLN1,FBLN2,NID1,NID2,PLAU,PLAUR,MMP1,MMP3"
+genes=unlist(strsplit(genes, ","))
+
+ann=data.frame(row.names = genes, status=c(rep("HGF-MET signaling",2), rep("Integrin",5),"Dystroglican", rep("Laminin",4), "Fibronectin", rep("HSPG",2), rep("Type IV collagen",3), "Osteopontin", rep("Fibrillin",2), rep("Fibulin",2), rep("Nidogen",2), rep("HGF-MET signaling",2), rep("Metalloproteases"),2))
+test=sapply(levels(cells$day), function(x){
+  tmp=mtx[genes, colnames(mtx)%in%rownames(cells[cells$day==x,])]
+  final=rowMeans(tmp)
+  return(final)
+})
+
+is=(as.matrix(test)-rowMeans(as.matrix(test)))/rowSds(as.matrix(test))
+
+colors=c(min(test),seq(-2,2,by=0.01))
+my_palette=c("lightskyblue",colorRampPalette(colors = c("lightskyblue", "white", "red4"))(n = length(colors)-3), "red4")
+order=c(25, 10,  9, 26, 29, 21,  6,  1, 24,  2, 28, 23, 22 ,20 ,27,  4 , 7 , 5 ,16, 17, 11,18, 15,  3,  8, 12, 19, 13, 14)
+
+pdf("Final_Figures/heatmap_ECM_cluster.pdf", height = 6, width=8)
+pheatmap(t(is), cluster_cols =  T,color=my_palette, cellwidth = 10, cellheight = 10, breaks=colors, annotation_col = ann,  border_color = "grey50", clustering_callback = function(hclust, is){
+  if(length(hclust$order)==8) {
+  hclust$order=1:8
+  return(hclust)
+  }else if(length(hclust$order)==29){
+  hclust$order=order
+  return(hclust)
+  }
+  })
+dev.off()
+
+pdf("Final_Figures/heatmap_ECM_cluster.pdf", height = 6, width=8)
+pheatmap(t(is), cluster_cols =  T,color=my_palette, cellwidth = 10, cellheight = 10, breaks=colors, annotation_col = ann,  border_color = "grey50")
+dev.off()
+
+```
+
+
+# Figure 3A
+
+```{r}
+palette=unlist(strsplit('#7f2b4a, #cc78bb, #3843a6, orange, red, yellow3, green4, #4ad962, #334016, deepskyblue, pink, grey70', '[, ]+'))
+
+fin=sapply(levels(cells$inter_clusters), function(x) {
+  tmp=cells[cells$inter_clusters==x,]
+  fin=c(mean(tmp$x), mean(tmp$y))
+  return(fin)
+})
+
+fin=as.data.frame(t(fin))
+fin=fin[-nrow(fin),]
+fin$cluster=rownames(fin)
+fin$cluster=factor(fin$cluster, levels=levels(cells$inter_clusters)[-12])
+
+
+pdf("Final_Figures/cluster_fle_centroids.pdf", height = 8, width=8, useDingbats = F)
+ggplot(data = cells, aes_string(x = "x", y = "y", color="inter_clusters")) + 
+    geom_point(size = 0.5) + theme_classic() +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        title = element_text(size=24),
+        legend.position = "none") +
+  xlab("FLE1") + 
+  ylab("FLE2") +  
+  scale_color_manual(values=palette)+
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)) +
+  guides(color = guide_legend(override.aes=list(size=6)))+
+  geom_point(data=fin, aes_string("V1", "V2"), size=15, fill="white", color="black", pch=21)
+dev.off()
+```
+
+
+#Figure 3B
+
+```{r}
+is_df=read.table("ligand_receptor_analysis/outputs_82lr/Interaction_scores.txt", header=T)
+is_df=is_df[order(is_df$stand_score, decreasing=T),]
+pairs=unique(is_df[!duplicated(is_df$days),5])
+
+is=acast(is_df, days ~ pair, value.var="stand_score")
+
+is=as.data.frame(t((is-rowMeans(is))/rowSds(is)))
+is=is[,-1]
+
+colnames(is)=c("D3", "D5", "D7", "D9", "D11", "D13", "D15")
+
+is=is[rownames(is)%in%pairs,]
+
+
+colors=c(min(scale(is)),seq(-2,2,by=0.01),max(scale(is)))
+my_palette=c("lightskyblue",colorRampPalette(colors = c("lightskyblue", "white", "red4"))(n = length(colors)-3), "red4")
+#order=c(1,8,20,17,18,14,6,15,2,4,7,13,16,23,25,22,26,21,12,11,24,10,9,19,3,5)
+
+pdf("Final_Figures/heatmap_is_82.pdf", height = 6, width=6)
+pheatmap(t(is), cluster_cols =  T,color=my_palette, cellwidth = 10, cellheight = 10, breaks=colors,  border_color = "grey50", clustering_callback = function(hclust, is){
+  if(length(hclust$order)==7)
+  hclust$order=1:7
+  return(hclust)
+  })
+dev.off()
+```
+
+```{r}
+is_df=read.table("ligand_receptor_analysis/outputs_82lr/Interaction_scores.txt", header=T)
+
+is=acast(is_df, days ~ pair, value.var="stand_score")
+
+is=t((is-rowMeans(is))/rowSds(is))
+is=is[,-1]
+
+colnames(is)=c("D3", "D5", "D7", "D9", "D11", "D13", "D15")
+
+colors=c(min(scale(is)),seq(-2,2,by=0.01),max(scale(is)))
+my_palette=c("lightskyblue",colorRampPalette(colors = c("lightskyblue", "white", "red4"))(n = length(colors)-3), "red4")
+
+pdf("Final_Figures/heatmap_is_82_full.pdf", height = 6, width=16)
+pheatmap(t(is), cluster_cols =  T,color=my_palette, cellwidth = 10, cellheight = 10, breaks=colors,  border_color = "grey50", clustering_callback = function(hclust, is){
+  if(length(hclust$order)==7)
+  hclust$order=1:7
+  return(hclust)
+  })
+dev.off()
+
+```
+
+# Figure 3B bis
+
+```{r}
+is_df=read.table("Data/ligand_receptor_analysis/outputs_D3_others/Interaction_scores.txt")
+colnames(is_df)=c("days","score","pval","stand_score","pair")
+is_df=is_df[order(is_df$stand_score, decreasing=T),]
+pairs=unique(is_df[,5])[1:5]
+
+is=acast(is_df, days ~ pair, value.var="stand_score")
+
+is=as.data.frame(t((is-rowMeans(is))/rowSds(is)))
+
+colnames(is)=c("D5", "D7", "D9", "D11", "D13", "D15")
+
+is=is[rownames(is)%in%pairs,]
+
+
+colors=c(min(scale(is)),seq(-2,2,by=0.01),max(scale(is)))
+my_palette=c("lightskyblue",colorRampPalette(colors = c("lightskyblue", "white", "red4"))(n = length(colors)-3), "red4")
+#order=c(1,8,20,17,18,14,6,15,2,4,7,13,16,23,25,22,26,21,12,11,24,10,9,19,3,5)
+
+pdf("Figures/heatmap_is_D3_others_top.pdf", height = 6, width=6)
+pheatmap(t(is), cluster_cols =  T,color=my_palette, cellwidth = 10, cellheight = 10, breaks=colors,  border_color = "grey50", clustering_callback = function(hclust, is){
+  if(length(hclust$order)==6)
+  hclust$order=1:6
+  return(hclust)
+  })
+dev.off()
+
+
+is=acast(is_df, days ~ pair, value.var="stand_score")
+
+is=t((is-rowMeans(is))/rowSds(is))
+
+colnames(is)=c("D5", "D7", "D9", "D11", "D13", "D15")
+
+colors=c(min(scale(is)),seq(-2,2,by=0.01),max(scale(is)))
+my_palette=c("lightskyblue",colorRampPalette(colors = c("lightskyblue", "white", "red4"))(n = length(colors)-3), "red4")
+
+pdf("Figures/heatmap_is_D3_others_full.pdf", height = 6, width=16)
+pheatmap(t(is), cluster_cols =  T,color=my_palette, cellwidth = 10, cellheight = 10, breaks=colors,  border_color = "grey50", clustering_callback = function(hclust, is){
+  if(length(hclust$order)==7)
+  hclust$order=1:7
+  return(hclust)
+  })
+dev.off()
+
+```
+
+
+
+#Figure 3C
+
+```{r}
+couples=list(c("TNFSF9-TRAF2","ADM-CALCRL","HGF-MET"), c("INHBA-ACVR2B","PDGFC-KDR","WNT5A-FZD5"))
+
+df=list()
+for(i in 1:length(couples)){
+  df[[i]]=is_df[is_df$pair%in%couples[[i]],]
+  df[[i]]$class=ifelse(df[[i]]$p.value < 0.05, "*", "")
+  df[[i]]$class=ifelse(df[[i]]$p.value < 0.01, "**", df[[i]]$class)
+  df[[i]]=df[[i]][df[[i]]$days!=0,]
+  df[[i]]$days=factor(df[[i]]$days, levels=seq(3,15,2))
+}
+
+
+pdf("Final_Figures/is_clusters_pairs.pdf", height = 8, width=8, useDingbats = F)
+for(i in 1:length(df)){
+print(ggplot(data = df[[i]], aes_string(x = "days", y = "stand_score", group="pair", color="pair", label="class")) +
+  geom_line(size=1)+geom_point(pch=21, fill="white", size=2)+
+   theme_bw() + 
+  theme(axis.text = element_text(size=15),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        title = element_text(size=24),
+        legend.position = "top") +
+  xlab("Days") + 
+  ylab("Standardized Interaction Score") + 
+geom_text(vjust = 0, nudge_y = 0.5, size=5) +  scale_color_brewer(palette="Dark2") +
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)) +
+    guides(color = guide_legend(override.aes=list(size=6))))
+}
+dev.off()
+
+
+
+tp=list(seq(3,7,2), seq(9,15,2))
+
+df=list()
+for(i in 1:length(tp)){
+  df[[i]]=is_df[is_df$days%in%tp[[i]],]
+  df[[i]]$class=ifelse(df[[i]]$p.value < 0.05, "sign", "no")
+  df[[i]]=df[[i]][order(df[[i]]$stand_score, decreasing=T),]
+  df[[i]]$rank=1:nrow(df[[i]])
+  df[[i]]$label=ifelse(df[[i]]$pair%in%couples[[i]], df[[i]]$pair, "")
+}
+
+pdf("Final_Figures/is_ranked_pairs.pdf", height = 8, width=8, useDingbats = F)
+for(i in 1:length(df)){
+print(ggplot(data = df[[i]], aes_string(x = "rank", y = "stand_score", color="class", label="label")) +
+  geom_point(size=1)+
+   theme_bw() + 
+  theme(axis.text = element_text(size=15),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        title = element_text(size=24),
+        legend.position = "none") +
+  xlab("Ranked ligand-receptor pairs") + 
+  ylab("Standardized Interaction Score") + 
+geom_text(vjust = 0, nudge_y = .5, hjust=.5, size=2) +  scale_color_manual(values=c("black", "red")) +
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)))
+}
+dev.off()
+
+```
+
+
+
+
+
+```{r}
+# base canvas
+base_plot <- function(layout, point_size = 24, plot_title = "pathway"){
+  
+  plot <- ggplot()+ geom_point(size = point_size, data = layout, aes(x, y), colour = "black", fill="white", pch=21) + theme_void()+
+    ggtitle(plot_title) + 
+    xlim (min(layout$x)-0.2, max(layout$x)+0.2) + 
+    ylim (min(layout$y)-0.2, max(layout$y)+0.2) +
+    xlab("Louvain cluster pseudo-time") + 
+    scale_x_continuous(breaks=seq(1, 6, 1)) + 
+    theme(axis.text.y = element_blank(), axis.title.y = element_blank()) +
+    annotate(geom="text", x=layout$x, y=layout$y, label=layout$cluster, color="black")
+  
+  return(plot = plot)
+}
+
+# draw arrow with ggplot
+draw_arrow <- function(x_start,y_start,x_end,y_end, plot, counter, arrow_weight){
+  
+  if((x_start == x_end) & (y_start == y_end)){ # autocrine
+    if(y_end == 1){
+      plot <- plot + geom_curve(
+        aes(x = x_start-0.075, y = y_start+0.075, xend = x_end+0.075, yend = y_end+0.075, colour = counter),
+        arrow = arrow(length = unit(sqrt(counter)*0.005*arrow_weight, "npc"), type = "closed") , curvature = -2,
+        size = counter*0.5*arrow_weight
+      ) 
+    }
+    else{
+      plot <- plot + geom_curve(
+        aes(x = x_start-0.075, y = y_start-0.075, xend = x_end+0.075, yend = y_end-0.075, colour = counter), 
+        arrow = arrow(length = unit(sqrt(counter)*0.005*arrow_weight, "npc"), type = "closed") , curvature = 2,
+        size = counter*0.5*arrow_weight
+      ) 
+    }
+    
+  }else{ # paracrine
+    
+    y_start_offset <- 0
+    y_end_offset <- 0
+    if(y_start < y_end){ #freccia verso l'alto
+      y_start_offset <- 0.075
+      y_end_offset <- -0.075
+    }
+    if(y_start > y_end){ # freccia verso il basso
+      y_start_offset <- -0.075
+      y_end_offset <- 0.075
+    }
+    
+    x_start_offset <- 0
+    x_end_offset <- 0
+    if(x_start < x_end){#freccia verso destra
+      x_start_offset <- 0.15
+      x_end_offset <- -0.15
+    }
+    if(x_start > x_end){#freccia verso sinistra
+      x_start_offset <- -0.15
+      x_end_offset <- 0.15
+    }
+    
+    if(x_start == x_end){ # freccia verticale
+      if(y_start < y_end){ #freccia verso l'alto
+        x_start_offset <- x_end_offset <- -0.06
+      }
+      if(y_start > y_end){ #freccia verso basso
+        x_start_offset <- x_end_offset <- 0.06
+      }
+    }
+    
+    if(y_start == y_end){ # freccia orizzontale
+      if(x_start < x_end) { # freccia verso destra
+        x_start_offset <- 0.15
+        x_end_offset <- -0.15
+        y_start_offset <- y_end_offset <- 0.045
+      }
+      if(x_start > x_end) { # freccia verso sinistra
+        x_start_offset <- -0.15
+        x_end_offset <- 0.15
+        y_start_offset <- y_end_offset <- -0.045
+      }
+    }
+    
+    plot <- plot + geom_curve(
+      aes(x = x_start+x_start_offset, 
+          y = y_start+y_start_offset, 
+          xend = x_end+x_end_offset, 
+          yend = y_end+y_end_offset, colour = counter),
+      arrow = arrow(length = unit(sqrt(counter)*0.005*arrow_weight, "npc"), type = "closed") ,
+      size = counter*0.5*arrow_weight, curvature = -0.15)
+  }
+
+  return(plot)
+}
+
+# draw interaction (high level interface for draw_arrow)
+draw_interaction <- function(type1, type2, plot, layout, counter, arrow_weight = 1){
+  
+  x_start <- layout[layout$cluster == type1, "x" ]
+  y_start <- layout[layout$cluster == type1, "y" ]
+  
+  x_end <- layout[layout$cluster == type2, "x" ]
+  y_end <- layout[layout$cluster == type2, "y" ]
+  
+  new_plot <- draw_arrow(x_start,y_start, x_end,y_end, plot, counter, arrow_weight)
+  
+  return(new_plot)
+}
+
+
+
+# load nodes layout
+louvain_layout <- read.csv(file = "Final_Figures/louvain_layout.csv", stringsAsFactors = FALSE)
+rownames(louvain_layout) <- louvain_layout$cluster
+
+
+# load arrows and their weights
+lr_results=read.xlsx("results_42LR/LR_score.xlsx",1)
+num_pair_from_csv=as.data.frame(table(lr_results$interaction))
+colnames(num_pair_from_csv) <- c("Interaction", "Num_pair")
+rownames(num_pair_from_csv) <- num_pair_from_csv$Interaction
+
+
+# arrow size multiplier
+arrow_weight <- 0.8 
+
+plot0 <- base_plot(layout = louvain_layout, plot_title = "test plot")
+
+for(interaction in rownames(num_pair_from_csv)){
+  counter <- num_pair_from_csv[interaction, "Num_pair"] # num LR pairs
+  cat (interaction, counter, "\n")
+  if(counter > 0){
+    tmp_interaction <- unlist(strsplit(interaction,"_"))
+    type1 <- tmp_interaction[1] # cl_l
+    type2 <- tmp_interaction[2] # cl_r
+    plot0 <- draw_interaction(type1, type2, plot = plot0, layout = louvain_layout, counter = counter, arrow_weight = arrow_weight)
+  }
+}
+
+
+pdf(file=paste0("Final_Figures/num_sign_interaction.pdf"), width = 15, height = 8)
+print(plot0)
+dev.off()
+
+```
+
+
+# Figure 3C
+
+```{r}
+lr_results=read.xlsx("results_42LR/LR_score.xlsx",1)
+
+top=read.table("results_42LR/top_lr_pairs.txt")
+
+df_heatmap=lr_results
+df_heatmap$interaction=factor(df_heatmap$interaction, levels=levels(df_heatmap$interaction)[c(13:38, 1:12)])
+df_heatmap$sign=ifelse(df_heatmap$LR_pval < 0.05, "*", "")
+df_heatmap=as.data.frame(complete(df_heatmap,LR_pair,interaction,fill=list(LR_score=0,sign="")))
+
+
+pdf("Final_Figures/heatmap_lr_all.pdf", height = 8, width = 12)
+ggplot(df_heatmap, aes(interaction, LR_pair)) + theme_void()+
+  geom_tile(aes(fill = LR_score), color = "black", width=.9, height=.9) + 
+  scale_fill_viridis_c() +
+  ylab("") +
+  xlab("") +
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size=15, angle=-90),
+        axis.line = element_blank(),
+        axis.text = element_text(size=15),
+        axis.text.x = element_text(angle=45,hjust=1,vjust = 1),
+        aspect.ratio = 1,
+        legend.title = element_blank(),
+        legend.text = element_text(size=15)) +
+  geom_text(aes(label=sign)) 
+  #facet_grid(rows = vars(classes),scales="free")
+dev.off()
+
+
+df_heatmap=lr_results[lr_results$LR_pair%in%as.character(top$V1) & lr_results$cluster_l != "SR1",]
+df_heatmap$interaction=factor(df_heatmap$interaction, levels=levels(df_heatmap$interaction)[c(16:38, 1:12)])
+df_heatmap$LR_pair=factor(df_heatmap$LR_pair, levels=rev(unique(top$V1)))
+
+df_heatmap$sign=ifelse(df_heatmap$LR_pval < 0.05, "*", "")
+df_heatmap=as.data.frame(complete(df_heatmap,LR_pair,interaction,fill=list(LR_score=0,sign="")))
+
+
+pdf("Final_Figures/heatmap_lr_top.pdf", height = 8, width = 12)
+ggplot(df_heatmap, aes(interaction, LR_pair)) + theme_void()+
+  geom_tile(aes(fill = LR_score), color = "black", width=.9, height=.9) + 
+  scale_fill_viridis_c() +
+  ylab("") +
+  xlab("") +
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size=15, angle=-90),
+        axis.line = element_blank(),
+        axis.text = element_text(size=15),
+        axis.text.x = element_text(angle=45,hjust=1,vjust = 1),
+        aspect.ratio = 1,
+        legend.title = element_blank(),
+        legend.text = element_text(size=15)) +
+  geom_text(aes(label=sign)) 
+  #facet_grid(rows = vars(classes),scales="free")
+dev.off()
+
+```
+
+# Figure 3C - Real
+
+```{r}
+genes="MET,HGF,ITGB5,ITGB1,ITGAV,ITGA4,ITGA6,DAG1,LAMB1,LAMC1,LAMA1,LAMA5,FN1,HSPG2,COL18A1,COL4A2,COL4A6,COL4A5,SPP1,FBN1,FBN2,FBLN1,FBLN2,NID1,NID2,PLAU,PLAUR,MMP1,MMP3"
+genes=unlist(strsplit(genes, ","))
+
+
+test=sapply(levels(cells$classes), function(x){
+  tmp=mtx[genes, colnames(mtx)%in%rownames(cells[cells$classes==x,])]
+  final=rowMeans(tmp)
+  return(final)
+})
+
+test=(as.matrix(test)-rowMeans(as.matrix(test)))/rowSds(as.matrix(test))
+
+melt=melt(test)
+melt$Var2=ifelse(is.na(melt$Var2), "NA", as.character(melt$Var2))
+
+df_heatmap=merge(melt, cells[!duplicated(cells$classes),c("inter_clusters", "classes")], by.x="Var2", by.y="classes")
+
+df_heatmap$Var2=factor(df_heatmap$Var2, levels=levels(cells$classes))
+
+df_heatmap$Var1=factor(df_heatmap$Var1, levels=genes)
+
+
+pdf("Final_Figures/heatmap_marker_ECM_classes.pdf", height = 6, width = 6)
+ggplot(df_heatmap, aes(Var2, Var1)) + theme_void()+
+  geom_tile(aes(fill = value), color = "black") + 
+  scale_fill_gradient2(low = "deepskyblue", high = "red4", midpoint = 0) +
+  ylab("") +
+  xlab("") +
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size=15, angle=-90),
+        axis.line = element_blank(),
+        axis.text = element_text(size=7),
+        aspect.ratio = 1,
+        legend.title = element_blank(),
+        legend.text = element_text(size=15))+
+  scale_x_discrete(position = "top")
+  #geom_text(label=round(df_heatmap$value,2))
+  #facet_grid(rows = vars(classes),scales="free")
+dev.off()
+
+```
+
+
+# Figure 3D - Real
+
+```{r}
+genes="NRG1,ERBB3"
+genes=unlist(strsplit(genes, ","))
+
+
+test=as.data.frame(sapply(levels(cells$day), function(x){
+  tmp=mtx[genes, colnames(mtx)%in%rownames(cells[cells$day==x,])]
+  final=rowMeans(tmp)
+  return(final)
+}))
+
+test$genes=rownames(test)
+df=melt(test,id.vars="genes")
+df$genes=factor(df$genes, levels=c("NRG1", "ERBB3"))
+
+pdf("Final_Figures/NRG1_ERBB3_daytrend.pdf", height = 8, width=8, useDingbats = F)
+ggplot(data = df, aes_string(x = "variable", y = "value", group="genes", color="genes")) +
+  geom_line(size=1)+geom_point(pch=21, fill="white", size=2)+
+   theme_classic() + 
+  theme(axis.text = element_text(size=15),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        title = element_text(size=24),
+        legend.position = "none") +
+  xlab("") + 
+  ylab("") +   scale_color_manual(values = c("darkorchid4", "darkorange2"))
+dev.off()
+
+```
+
+
+
+
+# Figure 3D
+
+```{r}
+stat3=readRDS("Final_Figures/stat3Targets.rds")
+stat3=as.character(stat3[abs(stat3$distanceToTSS)<2000, "SYMBOL"])
+
+traj=read.csv("WOT/trajectory_data_15_pathway.csv", header=T, row.names=1)
+
+traj=traj[match(colnames(mtx),rownames(traj)),]
+
+st=mtx[rownames(mtx)%in%stat3,]
+weight_i=t(t(st)*traj$IPS)
+weight_m=t(t(st)*traj$Matrisome)
+
+trends_i=data.frame(gene=rownames(weight_i))
+trends_m=data.frame(gene=rownames(weight_m))
+
+for(i in unique(cells$day)){
+  trends_i[,i]=rowSums(weight_i[,colnames(weight_i)%in%as.character(cells[cells$day==i,"id"])])
+  trends_m[,i]=rowSums(weight_m[,colnames(weight_m)%in%as.character(cells[cells$day==i,"id"])])
+}
+
+fin_i=data.frame(mean=colMeans(trends_i[,-1]))
+fin_m=data.frame(mean=colMeans(trends_m[,-1]))
+
+fin_i$class="IPS"
+fin_i$day=rownames(fin_i)
+fin_m$class="Matrisome"
+fin_m$day=rownames(fin_m)
+
+dat=rbind(fin_i, fin_m)
+dat$day=factor(dat$day, levels=levels(cells$day))
+
+pdf("Final_Figures/stat3_trends.pdf", width=8, height=8)
+ggplot(data = dat, aes_string(x = "day", y = "mean", group="class", color="class")) +
+  geom_line(size=1)+geom_point(pch=21, fill="white", size=2)+
+   theme_bw() + 
+  theme(axis.text = element_text(size=15),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        title = element_text(size=24),
+        legend.position = "top") +
+  xlab("Days") + 
+  ylab("Mean") + 
+  scale_color_brewer(palette="Dark2")+
+    guides(color = guide_legend(override.aes=list(size=6)))
+
+dev.off()
+```
+
+# Figure 3F
+
+```{r}
+library(Seurat)
+
+seu=readRDS("roadmap_analysis/readySeu_hrpi.rds")
+
+cells=as.data.frame(seu@reductions$fdl@cell.embeddings)
+cells$identity=seu@meta.data$identity
+
+colorIdentity = c("black","olivedrab3","gold","darkorange",
+                  "blue","purple","firebrick3","pink")
+names(colorIdentity) = c("fibroblast", "nonReprog2","nonReprog1","mixed","early-primed","primed","naive","nis")
+
+pdf("Final_Figures/roadmap_cluster_fle.pdf", height = 8, width=8, useDingbats = F)
+ggplot(data = cells, aes_string(x = "FDL_1", y = "FDL_2", color="identity")) + 
+    geom_point(size = 0.5) + theme_classic() + 
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        title = element_text(size=24),
+        legend.position = c(0.4, 0.1)) +
+  xlab("FLE1") + 
+  ylab("FLE2") +  
+  scale_color_manual(values=colorIdentity)+
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)) +
+  guides(color = guide_legend(override.aes=list(size=6), nrow=3))
+dev.off()
+
+## ligand-receptor
+ligand="NRG1"
+receptor="ERBB3"
+exp=as.data.frame(t(as.matrix(seu@assays$integrated[c(seu@misc$convert$name2id[c(ligand, receptor)]),])))
+cells$diff=exp[,1]-exp[,2]
+
+pdf(paste0("Final_Figures/roadmap_",ligand,"_",receptor,"_fle.pdf"), height = 8, width=8, useDingbats = F)
+ggplot(data = cells, aes_string(x = "FDL_1", y = "FDL_2", color="diff")) +
+  geom_point(size = 0.5) + theme_classic() + 
+ theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_blank(),
+        title = element_text(size=24),
+        legend.position = c(0.5, 0.1)) +
+  xlab("FLE1") + 
+  ylab("FLE2") + 
+  scale_color_gradient2(low = "darkorange2", high = "darkorchid4", midpoint = 0, mid="grey90")
+dev.off()
+
+## ligand-receptor barplot
+seu=SetIdent(seu, value="identity")
+exp=AverageExpression(seu, assays="integrated")[[1]]
+
+
+ligand="NRG1"
+receptor="ERBB3"
+df=exp[c(seu@misc$convert$name2id[c(ligand, receptor)]),]
+df$gene=c(ligand, receptor)
+df=melt(df,id.vars="gene")
+
+
+mycolors=c("darkorchid4", "darkorange2")
+names(mycolors)=c(ligand, receptor)
+
+df$variable = factor(df$variable,levels= c("fibroblast", "nonReprog2","nonReprog1","mixed","early-primed","primed","naive","nis"))
+
+df$gene = factor(df$gene, levels=c(ligand, receptor))
+
+pdf(paste0("Final_Figures/roadmap_",ligand,"_",receptor,"_barplot.pdf"), height = 8, width=8, useDingbats = F)
+ggplot(data=df, aes(x=variable, y=value, fill=gene)) +
+  geom_bar(stat="identity", position=position_dodge(),width = .7, color="black", alpha=.7)+
+  scale_fill_manual(values = mycolors)+theme_classic()+theme(axis.text.x = element_text(angle = 90))+xlab("")+ylab("")
+dev.off()
+
+```
+
+
+# Figure 3G
+
+```{r}
+int_path=read.xlsx("../Final_Figures/gene_sets_name_conversion.xlsx", header=F, sheetIndex=1)
+df=read.table("roadmap_analysis/reactome_custom_gmt_cluster_nonReprog1.txt", header=T)
+
+df=df[df$NES>0,c("pathway","NES" ,"padj")]
+df=df[order(df$NES, decreasing = T),]
+df=df[grepl("REACTOME|MATRISOME", df$pathway),]
+df$class=ifelse(df$pathway%in%c(int_path[,2], "MATRISOME"), "Proteomic", "NO")
+df=df[df$class!="NO",]
+df$pathway=gsub("MATRISOME", "NABA_CORE_MATRISOME", df$pathway)
+df=merge(df, int_path, by.x="pathway", by.y="X2")
+
+df$NES=as.numeric(df$NES)
+df$padj=-log10(df$padj)
+df=df[order(df$padj, decreasing=T),]
+df$X1=gsub("_", " ", df$X1)
+df$X1=factor(df$X1, levels=rev(df$X1))
+
+
+pdf("Final_Figures/roadmap_barplot_proteomic.pdf", height = 12, width=12)
+ggplot(data = df, aes_string(x = "X1", y = "padj", fill="NES")) +
+  geom_bar(width=.7, color="black", stat="identity") + theme_bw() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(size=15),
+        legend.text = element_text(size=15),
+        legend.title = element_text(size=15))+
+  xlab("") + 
+  ylab("") + 
+  scale_fill_gradient2(low = "white", high = "red4")+
+  theme(strip.background = element_rect(fill = NA, colour = NA),
+        strip.text.x = element_text(size = 15)) +
+  coord_flip()
+dev.off()
+
+
+```
+
+
+# Figure 3H
+
+```{r}
+## ligand-receptor
+ligand="NRG1"
+receptor="ERBB2"
+exp=as.data.frame(t(as.matrix(mtx[c(ligand, receptor),])))
+cells$diff=exp[,1]-exp[,2]
+
+pdf(paste0("Final_Figures/data_",ligand,"_",receptor,"_fle.pdf"), height = 8, width=8, useDingbats = F)
+ggplot(data = cells, aes_string(x = "x", y = "y", color="diff")) +
+  geom_point(size = 0.5) + theme_classic() + 
+ theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size=15),
+        panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_blank(),
+        title = element_text(size=24),
+        legend.position = c(0.5, 0.1)) +
+  xlab("FLE1") + 
+  ylab("FLE2") + 
+  scale_color_gradient2(low = "darkorange2", high = "darkorchid4", midpoint = 0, mid="grey90")
+dev.off()
+
+```
+
+
+#Figure 3I - Proteomics
+
+```{r}
+res=read.table("Final_Figures/mean_log_values.txt", header=T)
+
+res=res[res$Gene_Symbol%in%c("INHBA","SPP1","VEGFA","FGF2","AREG","VEGFC","NRG1", "HGF"),]
+melt=melt(res, id.vars="Gene_Symbol")
+melt$variable=gsub("[.]", "-", melt$variable)
+
+
+pdf("Final_Figures/Proteomics_SASP_dynamics.pdf", height = 6, width = 6,useDingbats=FALSE)
+ggplot(melt, aes(x = variable, y = value, color=Gene_Symbol, group=Gene_Symbol)) +
+  geom_point(size=2,fill="white") +
+  geom_line(size=1) +
+  theme_classic()+
+  theme(panel.grid = element_blank(),
+    axis.title = element_text(size=17),
+        axis.title.x=element_blank(),
+        axis.text.y = element_text(size=14),
+        axis.text.x = element_text(size=7),
+        axis.line.x = element_blank(),
+        axis.ticks.x=element_blank(),
+        legend.title = element_blank(),
+        axis.line.y = element_line(size=1),
+        legend.text = element_text(size=10)) +
+  scale_color_brewer(palette = "Dark2")+
+  geom_hline(yintercept = 0, size=.5) +
+  ylab("") +
+  xlab("") +
+  scale_x_discrete(position = "top")
+dev.off()
+```
+
+#Figure 3I - Transcriptomics
+
+```{r}
+traj=read.csv("WOT/trajectory_data_15_pathway.csv", header=T, row.names=1)
+
+genes=c("INHBA","SPP1","FGF2","AREG","NRG1", "HGF")
+
+res=mtx[rownames(mtx)%in%genes,]
+
+final=merge(traj, as.data.frame(t(res)), by=0)
+
+#Matrisome trend
+test=sapply(genes, function(x) final[,x]*final[,"Matrisome"])
+rownames(test)=final$Row.names
+
+test=as.data.frame(sapply(levels(cells$day), function(x){
+  tmp=test[rownames(test)%in%rownames(cells[cells$day==x,]),]
+  final=colSums(tmp)
+  return(final)
+}))
+test$Gene_Symbol=rownames(test)
+melt_m=melt(test, id.vars="Gene_Symbol")
+melt_m$Cond="Matrisome"
+
+#IPS trend
+test=sapply(genes, function(x) final[,x]*final[,"IPS"])
+rownames(test)=final$Row.names
+
+test=as.data.frame(sapply(levels(cells$day), function(x){
+  tmp=test[rownames(test)%in%rownames(cells[cells$day==x,]),]
+  final=colSums(tmp)
+  return(final)
+}))
+test$Gene_Symbol=rownames(test)
+melt_i=melt(test, id.vars="Gene_Symbol")
+melt_i$Cond="IPS"
+
+melt=rbind(melt_m, melt_i)
+
+
+pdf("Final_Figures/Transcriptomics_SASP_dynamics.pdf", height = 6, width = 6,useDingbats=FALSE)
+ggplot(melt, aes(x = variable, y = value, color=Gene_Symbol, group=Gene_Symbol)) +
+  geom_point(size=2,fill="white") +
+  geom_line(size=1) +
+  theme_classic()+
+  theme(panel.grid = element_blank(),
+    axis.title = element_text(size=17),
+        axis.title.x=element_blank(),
+        axis.text.y = element_text(size=14),
+        axis.text.x = element_text(size=7),
+        axis.line.x = element_blank(),
+        axis.ticks.x=element_blank(),
+        legend.title = element_blank(),
+        axis.line.y = element_line(size=1),
+        legend.text = element_text(size=10)) +
+  scale_color_brewer(palette = "Dark2")+
+  ylab("") +
+  xlab("") +
+  facet_grid(cols=vars(Cond))
+dev.off()
+
+
+```
+
+# Figure 4A real
+
+```{r}
+pdf("Final_Figures/lig_rec_daytrend.pdf", height = 8, width=8, useDingbats = F)
+i=c("LIF,LIFR,HGF,MET,IL6,IL6R")
+genes=unlist(strsplit(i, ","))
+
+test=as.data.frame(sapply(levels(cells$day), function(x){
+  tmp=mtx[genes, colnames(mtx)%in%rownames(cells[cells$day==x,])]
+  final=rowMeans(tmp)
+  return(final)
+}))
+
+test=test[complete.cases(test),]
+test$genes=rownames(test)
+df=melt(test,id.vars="genes")
+df=df[!grepl("LIFR.1",df[,1]),]
+df=rbind(df, data.frame(genes=rep("LIF",8),variable=c("D0",paste0("D",seq(3,15,2))),value=rep(0,8)))
+df=rbind(df, data.frame(genes=rep("IL6R",8),variable=c("D0",paste0("D",seq(3,15,2))),value=rep(0,8)))
+df$genes=factor(df$genes, levels=genes)
+
+ggplot(df, aes(variable, genes)) + theme_void()+
+  geom_tile(aes(fill = value), color = "black", width=.9, height=.9) +
+  scale_fill_gradient(low="white",high="red4")+
+  ylab("") +
+  xlab("") +
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size=15, angle=-90),
+        axis.line = element_blank(),
+        axis.text = element_text(size=15),
+        axis.text.x = element_text(angle=45,hjust=1,vjust = 1),
+        aspect.ratio = 1,
+        legend.title = element_blank(),
+        legend.text = element_text(size=15))
+dev.off()
+
+```
+
+
+
+
+# Figure 4A
+```{r}
+res=read.table("Final_Figures/Exp_res.txt", header=T)
+df=res[res$Exp=="LoF_inhib",]
+df$Cond=factor(df$Cond, levels=c("Vehicle", "JAKi", "cMETi"))
+
+pdf("Final_Figures/box_lof_inhib.pdf", height = 6, width=6)
+ggplot(df, aes(x=Cond, y=Value)) +
+    geom_boxplot(alpha=0.8, fill="seagreen3", width=0.4,color="black",outlier.shape = NA) +
+theme_bw() +
+  geom_jitter(size=1, color="black") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(size=15),
+        axis.title = element_text(size=15)) +
+  coord_cartesian(ylim = c(0,2))
+dev.off()
+
+```
+
+# Figure 4B
+```{r}
+df=res[res$Exp=="LoF_siRNA",]
+df$Cond=factor(df$Cond, levels=c("siSCR", "siSTAT3"))
+
+pdf("Final_Figures/box_lof_sirna.pdf", height = 6, width=6)
+ggplot(df, aes(x=Cond, y=Value)) +
+    geom_boxplot(alpha=0.8, fill="seagreen3", width=0.4,color="black",outlier.shape = NA) +
+theme_bw() +
+  geom_jitter(size=1, color="black") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(size=15),
+        axis.title = element_text(size=15)) +
+  coord_cartesian(ylim = c(0,2))
+dev.off()
+
+```
+
+
+# Figure 4C
+
+```{r}
+df=res[grep("GoF", res$Exp),]
+df$Cond=factor(df$Cond, levels=unique(df$Cond))
+
+pdf("Final_Figures/box_gof.pdf", height = 6, width=12)
+ggplot(df, aes(x=Cond, y=Value)) +
+    geom_boxplot(alpha=0.8, fill="seagreen3", width=0.4,color="black",outlier.shape = NA) +
+theme_classic() +
+  geom_jitter(size=1, color="black") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(size=15),
+        axis.title = element_text(size=15))+
+  facet_grid(cols=vars(Exp), scale="free")
+dev.off()
+
+```
+
+
+# Figure S4
+
+```{r}
+res=read.table("Final_Figures/siSTAT3_quant.txt")
+df=res
+df$V1=gsub("siRNA_NEG", "siSCR", df$V1)
+df$V1=gsub("siRNA_STAT3", "siSTAT3", df$V1)
+df$V1=factor(df$V1, levels=c("siSCR", "siSTAT3"))
+
+pdf("Final_Figures/box_sirna_supp.pdf", height = 6, width=6)
+ggplot(df, aes(x=V1, y=V2)) +
+    geom_boxplot(alpha=0.8, fill="seagreen3", width=0.4,color="black",outlier.shape = NA) +
+theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(size=15),
+        axis.title = element_text(size=15)) +
+  coord_cartesian(ylim = c(0,2)) +
+  xlab("")+
+  ylab("STAT3 Nuclear Intensity/Hoechst a.u.")
+dev.off()
+
+```
+
