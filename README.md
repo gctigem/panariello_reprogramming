@@ -1,10 +1,22 @@
 # Cellular population dynamics shape the route to human pluripotency
-#### S. Slovin<sup>1,+</sup>, A. Carissimo<sup>2,+</sup>, F. Panariello<sup>1,+</sup>, A. Grimaldi<sup>1</sup>, V. Bouché<sup>1</sup>, G. Gambardella<sup>1,3,++</sup>, D. Cacchiarelli<sup>1,4,++</sup>
+#### Francesco Panariello<sup>1,&</sup>, Onelia Gagliano<sup>2,3,4,&</sup>, Camilla Luni<sup>5,6,&</sup>, Antonio Grimaldi<sup>1,&</sup>, Silvia Angiolillo<sup>2,3</sup>, Wei Qin<sup>2,3,5</sup>, Anna Manfredi<sup>1,7</sup>, Patrizia Annunziata<sup>1,7</sup>, Shaked Slovin<sup>1</sup>, Lorenzo Vaccaro<sup>1</sup>, Sara Riccardo<sup>1,7</sup>, Valentina Bouche<sup>1</sup>, Manuela Dionisi<sup>1,7</sup>, Marcello Salvi<sup>1,7</sup>, Sebastian Martewicz<sup>5</sup>, Manli Hu<sup>5</sup>, Meihua Cui<sup>5</sup>, Hannah Stuart<sup>2,3</sup>, Cecilia Laterza<sup>2,3</sup>, Giacomo Baruzzo<sup>8</sup>, Geoffrey Schiebinger<sup>9</sup>, Barbara Di Camillo<sup>8,10,11</sup>, Davide Cacchiarelli<sup>1,12,13,*</sup>, Nicola Elvassore<sup>2,3,4,5,*</sup>
 
-<sup>1</sup>Telethon Institute of Genetics and Medicine, Armenise/Harvard Laboratory of Integrative Genomics, Pozzuoli, Italy.  
-<sup>2</sup>Istituto per le Applicazioni del Calcolo "Mauro Picone," Consiglio Nazionale delle Ricerche, Naples, Italy.  
-<sup>3</sup>Department of Chemical Materials and Industrial Engineering, University of Naples “Federico II”, Naples, Italy.  
-<sup>4</sup>Department of Translational Medicine, University of Naples "Federico II", Naples, Italy.
+<sup>1</sup> Telethon Institute of Genetics and Medicine (TIGEM), Armenise/Harvard Laboratory of Integrative Genomics, Pozzuoli, Italy
+<sup>2</sup> Dept. of Industrial Engineering, University of Padova, Padova, Italy
+<sup>3</sup> Veneto Institute of Molecular Medicine (VIMM), Padova, Italy
+<sup>4</sup> Stem Cell and Regenerative Medicine Section, GOS Institute of Child Health, University College London, London, UK
+<sup>5</sup> Shanghai Institute for Advanced Immunochemical Studies (SIAIS), ShanghaiTech University, Shanghai, China
+<sup>6</sup> Dept. of Civil, Chemical, Environmental and Materials Engineering (DICAM), University of Bologna, Bologna, Italy
+<sup>7</sup> Next Generation Diagnostic srl, Pozzuoli, Italy
+<sup>8</sup> Dept. of Information Engineering, University of Padova, Padova, Italy
+<sup>9</sup> Dept. of Mathematics, University of British Columbia, Vancouver, Canada
+<sup>10</sup> Department of Comparative Biomedicine and Food Science, University of Padova, Padova, Italy
+<sup>11</sup> CRIBI Biotechnology Center, University of Padova, Padova, Italy
+<sup>12</sup> Department of Translational Medicine, University of Naples “Federico II”, Naples, Italy
+<sup>13</sup> School for Advanced Studies, Genomics and Experimental Medicine Program, University of Naples “Federico II”, Naples, Italy
+<sup>&</sup> These authors contributed equally: Francesco Panariello, Onelia Gagliano, Camilla Luni & Antonio Grimaldi
+<sup>*</sup> These authors jointly supervised this work: Davide Cacchiarelli, Nicola Elvassore 
+
 
 ## Abstract
 Human cellular reprogramming to induced pluripotency is still an inefficient process and this has long hindered the study of the role of critical intermediate stages. We take advantage of high efficiency reprogramming in microfluidics and temporal multi-omics to identify and resolve distinct sub-populations and their interactions. The combination of secretome analysis and single-cell transcriptomics shows functional extrinsic pathways of protein communication between reprogramming sub-populations and the re-shaping of a permissive extracellular environment. We pinpoint the HGF/MET/STAT3 axis as a potent enhancer of reprogramming, which acts via HGF accumulation within the confined system of microfluidics, and in conventional dishes needs to be supplied exogenously to enhance efficiency. 
