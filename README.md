@@ -1,7 +1,7 @@
 # Cellular population dynamics shape the route to human pluripotency
 #### Francesco Panariello<sup>1,&</sup>, Onelia Gagliano<sup>2,3,4,&</sup>, Camilla Luni<sup>5,6,&</sup>, Antonio Grimaldi<sup>1,&</sup>, Silvia Angiolillo<sup>2,3</sup>, Wei Qin<sup>2,3,5</sup>, Anna Manfredi<sup>1,7</sup>, Patrizia Annunziata<sup>1,7</sup>, Shaked Slovin<sup>1</sup>, Lorenzo Vaccaro<sup>1</sup>, Sara Riccardo<sup>1,7</sup>, Valentina Bouche<sup>1</sup>, Manuela Dionisi<sup>1,7</sup>, Marcello Salvi<sup>1,7</sup>, Sebastian Martewicz<sup>5</sup>, Manli Hu<sup>5</sup>, Meihua Cui<sup>5</sup>, Hannah Stuart<sup>2,3</sup>, Cecilia Laterza<sup>2,3</sup>, Giacomo Baruzzo<sup>8</sup>, Geoffrey Schiebinger<sup>9</sup>, Barbara Di Camillo<sup>8,10,11</sup>, Davide Cacchiarelli<sup>1,12,13,*</sup>, Nicola Elvassore<sup>2,3,4,5,*</sup>
 
-<sup>1</sup> Telethon Institute of Genetics and Medicine (TIGEM), Armenise/Harvard Laboratory of Integrative Genomics, Pozzuoli, Italy
+<sup>1</sup> Telethon Institute of Genetics and Medicine (TIGEM), Armenise/Harvard Laboratory of Integrative Genomics, Pozzuoli, Italy </br>
 <sup>2</sup> Dept. of Industrial Engineering, University of Padova, Padova, Italy
 <sup>3</sup> Veneto Institute of Molecular Medicine (VIMM), Padova, Italy
 <sup>4</sup> Stem Cell and Regenerative Medicine Section, GOS Institute of Child Health, University College London, London, UK
